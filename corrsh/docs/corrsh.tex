@@ -1,0 +1,161 @@
+% \documentclass[a4paper,10pt]{report}
+% \usepackage[utf8x]{inputenc}
+% \usepackage[left=1.0in, right=1.0in, top=1.0in, bottom=1.0in]{geometry}
+% \usepackage{tikz}
+\documentclass[iop,onecolumn]{emulateapj}
+
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{natbib}
+\usepackage{algorithm2e}
+\newcommand{\mubold}{\mbox{\boldmath$\mu$}}
+\newcommand{\omegabold}{\mbox{\boldmath$\omega$}}
+\newcommand{\alphabold}{\mbox{\boldmath$\alpha$}}
+\newcommand{\betabold}{\mbox{\boldmath$\beta$}}
+\newcommand{\phibold}{\mbox{\boldmath$\phi$}}
+\newcommand{\epsilonbold}{\mbox{\boldmath$\epsilon$}}
+\newcommand{\thetabold}{\mbox{\boldmath$\theta$}}
+\newcommand{\gammabold}{\mbox{\boldmath$\gamma$}}
+\newcommand{\psibold}{\mbox{\boldmath$\psi$}}
+\newcommand{\sigmabold}{\mbox{\boldmath$\sigma$}}
+\newcommand{\argmax}[1]{\underset{#1}{\operatorname{arg}\,\operatorname{max}}\;}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\prox}{\mathrm{prox}}
+
+\begin{document}
+% Title Page
+\title{Correlating Shack-Hartmann}
+\author{A. Asensio Ramos}
+
+\maketitle
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Analytical method}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Given two images $f(\mathbf{r})$ and $g(\mathbf{r}+\mathbf{r}_0)$, with $\mathbf{r}=(x,y)$
+and $\mathbf{r}_0$, we can estimate the shift between the two images assuming that they
+are similar by optimizing the following squared error:
+\begin{equation}
+\epsilon^2 = \int \int_{-\infty}^{\infty} \left| f(\mathbf{r}) - g(\mathbf{r}+\mathbf{r}_0)\right|^2 \mathrm{d}\mathbf{f}= 
+\int \int_{-\infty}^{\infty} \left| F(\mathbf{f}) - G(\mathbf{f}) \exp \left( 2\pi i \,\mathbf{f} \cdot \mathbf{r}
+\right) \right|^2 \mathrm{d}\mathbf{f},
+\end{equation}
+where the last equation is a consequence of the Parseval's theorem and capital
+letters refer to the Fourier transform of the equivalent functions in small letters. If we want to estimate
+the shift of many images with respect to a reference one, one can build a merit function
+by adding all squared errors:
+\begin{equation}
+\epsilon^2 = \sum_{i=1}^N  
+\int \int_{-\infty}^{\infty} \left| F_i(\mathbf{f}) - G_i(\mathbf{f}) \exp \left( 2\pi i \,\mathbf{f} \cdot \mathbf{r}_i
+\right) \right|^2 \mathrm{d}\mathbf{f}.
+\label{eq:merit}
+\end{equation}
+Given that every individual $\mathbf{r}_i$ affects only the $i$-th term in $\epsilon^2$, solving
+for all subapertures simultaneously in this way is equivalent to finding each $\mathbf{r}_i$
+that optimizes each $\epsilon^2$.
+
+However, one can introduce some contraints by assuming that the displacement in all
+subapertures are not independent, but come from a common wavefront. We assume that the wavefront
+$\phi(x,y)$ at any point in the pupil is assumed to be given as a linear combination of 
+Zernike polynomials, so that:
+\begin{equation}
+\phi(x,y) = \sum_{j=1}^M \alpha_j Z_j(x,y),
+\end{equation}
+where $j$ is the Noll index and $Z_j(x,y)$ is the Zernike polynomial. A Shack-Hartmann (SH) wavefront
+sensor is a device that consists of several subapertures that produce images of the same
+object affected by different parts of the wavefront. The image is then shifted to a position
+$(\Delta x_i,\Delta y_i)$ that is given by the horizontal and vertical derivative of the wavefront:
+\begin{align}
+\Delta x_i = F \frac{\partial \phi(x_i,y_i)}{\partial x} = \sum_{j=1}^M \alpha_j \frac{\partial Z_j(x_i,y_i)}{\partial x}, \nonumber \\
+\Delta y_i = F \frac{\partial \phi(x_i,y_i)}{\partial y} = \sum_{j=1}^M \alpha_j \frac{\partial Z_j(x_i,y_i)}{\partial y},
+\end{align}
+where $F$ is the focal of the SH microlenses.
+
+The previous expressions can then be plugged into Eq. (\ref{eq:merit}) to find:
+\begin{equation}
+\epsilon^2 = \sum_{i=1}^N  
+\int \int_{-\infty}^{\infty} \left| F_i(\mathbf{f}) - G_i(\mathbf{f}) \exp \left[ 2\pi i \sum_j \alpha_j \left(
+f_x Z_{ij}^x + f_y Z_{ij}^y \right) \right] \right|^2 \mathrm{d}\mathbf{f},
+\end{equation}
+where $Z_{ij}^x$ is the horizontal derivative of the $j$ Zernike polynomial for subaperture $i$.
+For simplifying the notation during the calculations, we make the substitution $K_{ij}=f_x Z_{ij}^x + f_y Z_{ij}^y$.
+The previous merit function can then be optimized by taking the derivative with respect to all
+$\alpha_j$ and equate to zero. It can be checked that each derivative is given by:
+\begin{equation}
+\frac{\partial \epsilon^2}{\partial \alpha_k} = \Re \left\{ 4\pi i   
+\int \int_{-\infty}^{\infty} \sum_{i=1}^N \left[ K_{ik} F_i G_i^* \exp \left( -2\pi i \sum_j \alpha_j 
+K_{ij} \right) \right] \mathrm{d}\mathbf{f} \right\}=0.
+\end{equation}
+Now, the product $F_i G_i^*$ is the cross-correlation of the two functions. The cross-correlation
+function can be written, in general, as 
+\begin{equation}
+C_i(\mathbf{f}) = F_i G_i^* = |C(\mathbf{f})| \exp \left[ i \phi_i(\mathbf{f}) \right].
+\end{equation}
+This allows us to rewrite each equation as:
+\begin{equation}
+\frac{\partial \epsilon^2}{\partial \alpha_k} = \Re \left\{ i   
+\int \int_{-\infty}^{\infty} \sum_{i=1}^N \left[ K_{ik} |C_i| \exp \left( -2\pi i \sum_j \alpha_j 
+K_{ij} + i \phi_i \right) \right] \mathrm{d}\mathbf{f} \right\}=0.
+\end{equation}
+It is obvious that, if the phase of the cross-correlation is obtained with precision, it has
+to be very similar to the sum over the Zernike coefficients. This allows us to make a Taylor
+expansion and cut at first order, so that we approximate:
+\begin{equation}
+\exp \left( -2\pi i \sum_j \alpha_j 
+K_{ij} + \phi_i \right) \approx 1 + i \phi_i -2\pi i \sum_j \alpha_j K_{ij}.
+\end{equation}
+This allows us to linearize the equations and transform them into a linear system of
+equations. Plugging the series expansion into the derivative expression, we find:
+\begin{equation}
+\frac{\partial \epsilon^2}{\partial \alpha_k} = \Re \left[  i   
+\int \int_{-\infty}^{\infty} \sum_{i=1}^N K_{ik} |C_i| \mathrm{d}\mathbf{f} \right]
+- \Re \left[   
+\int \int_{-\infty}^{\infty} \sum_{i=1}^N K_{ik} |C_i| \phi_i \mathrm{d}\mathbf{f} \right]
++ \Re \left[ 2\pi    
+\int \int_{-\infty}^{\infty} \sum_{i=1}^N K_{ik} |C_i| \sum_j \alpha_j 
+K_{ij} \mathrm{d}\mathbf{f} \right].
+\end{equation}
+
+The first term is obviously zero because the integrand is real. The second and third terms can
+be worked out and written as:
+\begin{equation}
+-\int \int_{-\infty}^{\infty} \sum_{i=1}^N K_{ik} |C_i| \phi_i \mathrm{d}\mathbf{f}
+= -\sum_{i=1}^N \left( Z_{ik}^x b_i^x + Z_{ik}^y b_i^y \right) = -b_k,
+\end{equation}
+and
+\begin{equation}
+2\pi \int \int_{-\infty}^{\infty} \sum_{i=1}^N K_{ik} |C_i| \sum_j \alpha_j K_{ij} \mathrm{d}\mathbf{f}=
+2\pi \sum_j A_{kj} \alpha_j,
+\end{equation}
+where
+\begin{equation}
+A_{kj} = \sum_i Z_{ik}^x Z_{ij}^x a^{xx}_i + \sum_i \left( Z_{ik}^x Z_{ij}^y + Z_{ik}^y Z_{ij}^x \right) a^{xy}_i + 
+\sum_i Z_{ik}^y Z_{ij}^y a^{yy}_i,
+\end{equation}
+and
+\begin{align}
+a^{xx}_i &= \int \int_{-\infty}^{\infty} |C_i| f_x^2 \mathrm{d}\mathbf{f} \\
+a^{yy}_i &= \int \int_{-\infty}^{\infty} |C_i| f_y^2 \mathrm{d}\mathbf{f} \\
+a^{xy}_i &= \int \int_{-\infty}^{\infty} |C_i| f_x f_y \mathrm{d}\mathbf{f} \\
+b^{x}_i &= \int \int_{-\infty}^{\infty} |C_i| \phi_i f_x \mathrm{d}\mathbf{f} \\
+b^{y}_i &= \int \int_{-\infty}^{\infty} |C_i| \phi_i f_y \mathrm{d}\mathbf{f}
+\end{align}
+
+Summarizing, the coefficients of the wavefront are obtained by solving the 
+linear system:
+\begin{equation}
+\sum_j A_{kj} \alpha_j = \frac{-b_k}{2\pi},
+\end{equation}
+which can be written in matrix form as:
+\begin{equation}
+\mathbf{A} \alphabold = \mathbf{b}.
+\end{equation}
+
+\bibliographystyle{aa}
+\bibliography{/scratch/Dropbox/biblio}
+
+
+\end{document}          

@@ -3,6 +3,7 @@ import numpy as np
 import scipy.special as sp
 import scipy.linalg as spla
 import scipy.sparse as sparse
+import scipy.integrate as integ
 import matplotlib.pyplot as pl
 import pyiacsun as ps
 from ipdb import set_trace as stop
@@ -18,7 +19,7 @@ class tomography(object):
     """This class defines an atmosphere that can be used to generate synthetic MCAO observations
     and also apply different tomography schemes
     """
-    def __init__(self, nStars, nZernike, fov, heights, DTel, verbose=True, numericalProjection=True, addPiston=False):
+    def __init__(self, nStars, nZernike, fov, heights, DTel, wavelength=5000., verbose=True, numericalProjection=True, addPiston=False):
         """Class creation
         
         Args:
@@ -42,6 +43,8 @@ class tomography(object):
         self.numericalProjection = numericalProjection
         self.addPiston = addPiston
         self.noll0 = 1
+        self.wavelength = wavelength
+
         if (not self.addPiston):
             self.noll0 = 2
 
@@ -60,11 +63,13 @@ class tomography(object):
             print("-------------------------------------------------------------------")
 
         for i in range(self.nHeight):            
-            for j in range(self.nStars):
+            for j in range(self.nStars-1):
                 self.t[i,j] = (self.heights[i] * self.fov) / self.DMetapupil[i]
                 self.beta[i,j] = self.DMetapupil[i] / self.DTel
-                self.angle[i,j] = j * 2.0 * np.pi / self.nStars
-
+                self.angle[i,j] = j * 2.0 * np.pi / (self.nStars - 1.0)
+            self.t[i,-1] = 0.0
+            self.beta[i,-1] = self.DMetapupil[i] / self.DTel
+            self.angle[i,-1] = 0.0
         
         if (self.projectionExists() == 0):
             if (self.verbose):
@@ -73,6 +78,18 @@ class tomography(object):
 
         self.aStack = {}
         self.a = {}
+
+# Read cn2 file
+        cn2 = np.loadtxt('cn2.dat')
+
+# Compute total r0 value in cm
+        self.r0Reference = (0.423 * (2.0 * np.pi / (self.wavelength*1e-10))**2 * integ.trapz(cn2[:,1], x=cn2[:,0]))**(-3.0/5.0) * 1e2
+
+        for i in range(len(self.heights)):
+            indFrom = ps.util.nearest(cn2[:,0] - cn2[0,0], self.heights[i])
+            indTo = ps.util.nearest(cn2[:,0] - cn2[0,0], self.heights[i]+500.0)+1
+            # print(integ.trapz(cn2[indFrom:indTo,1], x=cn2[indFrom:indTo,0]) / integ.trapz(cn2[:,1], x=cn2[:,0]))
+        # stop()
 
     def projectionExists(self):
         """Check whether a projection matrix exists
@@ -111,7 +128,7 @@ class tomography(object):
         """
         ncols = int(np.ceil(np.sqrt(self.nHeight)))
         nrows = int(np.ceil(self.nHeight / ncols))
-        cmap = sns.color_palette()
+        cmap = sns.color_palette(n_colors=self.nStars)
         pl.close('all')
 
         f, ax = pl.subplots(ncols=ncols, nrows=nrows, figsize=(2*ncols,2*nrows))
@@ -268,19 +285,33 @@ class tomography(object):
     def _g(self, x):
         return self.mu * np.linalg.norm(x, 1)
 
-    def _proxgHeight(self, x, t):
+    def _proxL0Height(self, x, t):
         coef = x.reshape((self.nHeight,self.nZernike))
         coefOut = np.copy(coef)
-        for i in range(self.nZernike):            
-            # coefOut[:,i] = ps.sparse.proxes.prox_l0Largest(coef[:,i], 3)
-            coefOut[:,i] = ps.sparse.proxes.prox_l1(coef[:,i], t*self.mu)
+        which = int(np.random.rand()*self.nZernike)
+        res = ps.sparse.proxes.prox_l0Largest(coef[:,which], self.numberOfLayers)
+        ind = np.where(res == 0)[0]
+        coefOut[ind,:] = 0.0
 
         return coefOut.flatten()
 
-    def _proxg(self, x, t):
+    def _proxL1Height(self, x, t):
+        coef = x.reshape((self.nHeight,self.nZernike))
+        coefOut = np.copy(coef)
+        power = np.sum(coefOut**2, axis=1)
+
+        powerThr = ps.sparse.proxes.prox_l1(power ,t*self.mu)
+
+        ratio = powerThr / power
+
+        coefOut *= ratio[:,None]
+
+        return coefOut.flatten()
+
+    def _proxg(self, x, t):        
         return ps.sparse.proxes.prox_l1(x ,t*self.mu)
 
-    def solveFASTA(self, b):        
+    def solveFASTA(self, b, numberOfLayers=2):        
         """Solve the tomography using l1 regularization
         
         Args:
@@ -293,6 +324,8 @@ class tomography(object):
         
         self.MStackStar = self.MStack.T
 
+        self.numberOfLayers = numberOfLayers
+
 # Define the operators we need
         A = lambda x : self.MStack @ x
         At = lambda x : self.MStackStar @ x
@@ -302,47 +335,93 @@ class tomography(object):
         gradf = lambda x : x - b
         
 # Regularization parameter
-        mus = [1e-5]
+        mus = [0.1]
         
         values = np.zeros_like(self.aStack['Original'])
 
         for mu in mus:
             self.mu = mu                        
-            out = ps.sparse.fasta(A, At, f, gradf, self._g, self._proxg, values, tau=1.32/L, verbose=True, tol=1e-12, maxIter=60000, accelerate=True, backtrack=False, adaptive=False)
+            # out = ps.sparse.fasta(A, At, f, gradf, self._g, self._proxL0Height, values, tau=1.32/L, verbose=True, tol=1e-12, maxIter=60000, accelerate=True, backtrack=False, adaptive=False)
+            out = ps.sparse.fasta(A, At, f, gradf, self._g, self._proxL1Height, values, tau=1.32/L, verbose=True, tol=1e-12, maxIter=60000, accelerate=True, backtrack=False, adaptive=False)
             values = out.optimize()
 
         self.aStack['L1'] = values
         self.a['L1'] = self.aStack['L1'].reshape((self.nHeight,self.nZernike)).T
 
-    # def solveZeroSR1(self, b):
-    #     L = np.linalg.norm(self.MStack, 2)**2
+    def solveFISTA(self, b, numberOfLayers=2):        
+        """Solve the tomography using l1 regularization
         
-    #     self.MStackStar = self.MStack.T
-
-    #     A = lambda x : self.MStack @ x
-    #     At = lambda x : self.MStackStar @ x
-    #     f = lambda x : 0.5 * np.linalg.norm(x - b, 2)**2
-    #     gradf = lambda x : x - b
+        Args:
+            b (TYPE): array of WFS measurements
         
-    #     mus = [3e-4]
+        Returns:
+            None    
+        """
+        L = np.linalg.norm(self.MStack, 2)**2
         
-    #     values = np.zeros_like(self.aStack['Original'])
+        self.MStackStar = self.MStack.T
 
-    #     for mu in mus:
-                        
-    #         prox = lambda x0, d, u, varargin = None : ps.sparse.proxes_rank1.prox_rank1_l1(x0, d, u, mu)
-    #         h = lambda x : mu * np.linalg.norm(x,1)
-    #         fcnGrad = lambda x : ps.sparse.smooth.normSquared(x, A, At, np.atleast_2d(self.bStack).T)
-    #         opts = {'tol': 1e-10, 'grad_tol' : 1e-6, 'nmax' : 10000, 'verbose' : False, 'N' : self.nZernike*self.nHeight, 'L': L, 'verbose': 25}
+        self.numberOfLayers = numberOfLayers
 
-    #         values, nIteration, stepSizes = ps.sparse.zeroSR1(fcnGrad, h, prox, opts)
-
-    #         # print(f(A(values)) + g(values))
-    #         # print(f(A(self.aStack['SVD'])))
-    #         # stop()            
+# Define the operators we need
+        A = lambda x : self.MStack @ x
+        At = lambda x : self.MStackStar @ x
         
-    #     self.aStack['L1'] = values
-    #     self.a['L1'] = self.aStack['L1'].reshape((self.nHeight,self.nZernike)).T
+# Regularization parameter
+        mus = [0.1]
+        
+        valuesx = np.zeros_like(self.aStack['Original'])
+        valuesy = np.zeros_like(self.aStack['Original'])
+        valuesxOld = np.zeros_like(self.aStack['Original'])
+        
+        tau = 1.0 / L
+        t = 1.0
+
+        for mu in mus:
+            self.mu = mu
+            for i in range(25000):
+                valuesx = self._proxL1Height(valuesy - tau * At(A(valuesy) - b), tau * self.mu)                
+                tnew = 0.5*(1.0+np.sqrt(1+4*t**2))
+                valuesy = valuesx + (t - 1.0) / tnew * (valuesx - valuesxOld)
+                t = np.copy(tnew)
+                if (i % 100 == 0):
+                    print("It: {0:6d} - resid: {1:12.4e}".format(i, np.linalg.norm(valuesx - valuesxOld, 2) / tau))
+                valuesxOld = np.copy(valuesx)               
+
+
+        self.aStack['L1'] = valuesx
+        self.a['L1'] = self.aStack['L1'].reshape((self.nHeight,self.nZernike)).T
+
+    def solveIHT(self, b, numberOfLayers=2):        
+        """Solve the tomography using l0 regularization
+        
+        Args:
+            b (TYPE): array of WFS measurements
+        
+        Returns:
+            None    
+        """
+        L = np.linalg.norm(self.MStack, 2)**2
+        
+        self.MStackStar = self.MStack.T
+
+        self.numberOfLayers = numberOfLayers
+
+# Define the operators we need
+        A = lambda x : self.MStack @ x
+        At = lambda x : self.MStackStar @ x
+
+# ||x-b||^2
+        f = lambda x : 0.5 * np.linalg.norm(x - b, 2)**2
+        gradf = lambda x : x - b
+                
+        values = np.ones_like(self.aStack['Original'])
+
+        # values, err = ps.sparse.AIHT(b, A, At, len(values), self.numberOfLayers, 1e-8, proximalProjection=self._proxL0Height)
+        # values, err = ps.sparse.damp(A, At, values, self._proxgHeight, b, alpha=0.5)
+
+        self.aStack['L1'] = values
+        self.a['L1'] = self.aStack['L1'].reshape((self.nHeight,self.nZernike)).T
 
 def plotResults(forward, inversion):
     ncols = forward.nHeight
@@ -375,23 +454,23 @@ def plotResults(forward, inversion):
 
 np.random.seed(123)
 sns.set_style("dark")
-nStars = 3
+nStars = 7
 nZernike = 30
 fov = 60.0
 r0 = 0.15
 DTel = 4.0
 
 heights = np.arange(31)
-# heights = np.asarray([0.0, 4.0, 8.0])
 forward = tomography(nStars, nZernike, fov, heights, DTel)
-forward.generateTurbulentZernikesKolmogorov(r0, keepOnly=[0.0,4.0,16.0])
+# forward.generateTurbulentZernikesKolmogorov(r0, keepOnly=[0.0,4.0,16.0])
+forward.generateTurbulentZernikesKolmogorov(r0, keepOnly=[0.0, 3.0, 7.0, 12.0, 15.0, 25.0])
 bMeasured = forward.generateWFS()
 
 
 heights = np.arange(31)
 inversion = tomography(nStars, nZernike, fov, heights, DTel)
 inversion.generateTurbulentZernikesKolmogorov(r0)
-inversion.solveSVD(bMeasured)
-inversion.solveFASTA(bMeasured)
+inversion.solveSVD(bMeasured, regularize=True)
+inversion.solveFISTA(bMeasured)
 
 plotResults(forward, inversion)

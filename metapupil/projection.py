@@ -3,7 +3,6 @@ import scipy.integrate as integ
 import scipy.special as sp
 import wavefront as wf
 import pyiacsun as ps
-from ipdb import set_trace as stop
 def _sign(x):
     if (x == 0):
         return 1

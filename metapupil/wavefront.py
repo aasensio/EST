@@ -4,7 +4,6 @@ import numpy.fft
 import sys
 from scipy.special import gamma
 from numpy.random import normal
-from ipdb import set_trace as stop
 
 
 """
