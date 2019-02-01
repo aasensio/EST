@@ -1,0 +1,89 @@
+\documentclass[]{aa} % for the letters 
+\usepackage{txfonts,epsfig,graphicx,natbib,url,twoopt,amsmath,algorithm2e}
+\usepackage{color}
+
+\newcommand{\vectornorm}[1]{\left|\left|#1\right|\right|}
+\newcommand{\mubold}{\mbox{\boldmath$\mu$}}
+\newcommand{\thetabold}{\mbox{\boldmath$\theta$}}
+\newcommand{\betabold}{\mbox{\boldmath$\beta$}}
+\newcommand{\etabold}{\mbox{\boldmath$\eta$}}
+\newcommand{\epsilonbold}{\mbox{\boldmath$\epsilon$}}
+\newcommand{\lambdabold}{\mbox{\boldmath$\lambda$}}
+\newcommand{\Thetabold}{\mbox{\boldmath$\Theta$}}
+\newcommand{\Sigmabold}{\mbox{\boldmath$\Sigma$}}
+\newcommand{\sigmabold}{\mbox{\boldmath$\sigma$}}
+\newcommand{\Lambdabold}{\mbox{\boldmath$\Lambda$}}
+\newcommand{\Omegabold}{\mbox{\boldmath$\Omega$}}
+\newcommand{\alphabold}{\mbox{\boldmath$\alpha$}}
+\newcommand{\Phibold}{\mbox{\boldmath$\Phi$}}
+\newcommand{\omegabold}{\mbox{\boldmath$\omega$}}
+\newcommand{\phibold}{\mbox{\boldmath$\phi$}}
+\newcommand{\hazel}{\textsc{Hazel}}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\prox}{\mathrm{prox}}
+\def\comment#1{\textcolor{red}{[#1]}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Results are in /scratch/Dropbox/THEORY/inversionWavelet/forPaper
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usepackage{natbib,twoopt}
+% \usepackage[breaklinks=true]{hyperref} %% to avoid \citeads line fills
+\bibpunct{(}{)}{;}{a}{}{,}             %% natbib format for A&A and ApJ
+\makeatletter
+  \newcommandtwoopt{\citeads}[3][][]{\href{http://adsabs.harvard.edu/abs/#3}%
+    {\def\hyper@linkstart##1##2{}%
+     \let\hyper@linkend\@empty\citealp[#1][#2]{#3}}}
+  \newcommandtwoopt{\citepads}[3][][]{\href{http://adsabs.harvard.edu/abs/#3}%
+    {\def\hyper@linkstart##1##2{}%
+     \let\hyper@linkend\@empty\citep[#1][#2]{#3}}}
+  \newcommandtwoopt{\citetads}[3][][]{\href{http://adsabs.harvard.edu/abs/#3}%
+    {\def\hyper@linkstart##1##2{}%
+     \let\hyper@linkend\@empty\citet[#1][#2]{#3}}}
+  \newcommandtwoopt{\citeyearads}[3][][]%
+    {\href{http://adsabs.harvard.edu/abs/#3}
+    {\def\hyper@linkstart##1##2{}%
+     \let\hyper@linkend\@empty\citeyear[#1][#2]{#3}}}
+\makeatother
+
+\begin{document}
+
+\title{Regularized MCAO tomography}
+
+\author{A. Asensio Ramos\inst{1,2}}
+
+\institute{
+ Instituto de Astrof\'{\i}sica de Canarias, 38205, La Laguna, Tenerife, Spain; \email{aasensio@iac.es}
+\and
+Departamento de Astrof\'{\i}sica, Universidad de La Laguna, E-38205 La Laguna, Tenerife, Spain
+}
+             
+  \date{Received ---; accepted ---} 
+
+  \abstract{.}
+
+   \keywords{stars: magnetic fields, atmospheres --- line: profiles --- methods: data analysis}
+   \authorrunning{Asensio Ramos et al.}
+   \titlerunning{}
+   \maketitle
+%
+%________________________________________________________________
+
+\section{Introduction}
+Fluctuations in the refraction index of the atmosphere affects the propagation of 
+light and produces what astronomers know as \emph{seeing}. Under the
+
+\begin{acknowledgements}
+Financial support by the Spanish Ministry of Economy and Competitiveness 
+through projects AYA2014-60476-P, AYA2014-60833-P and Consolider-Ingenio 2010 CSD2009-00038 
+are gratefully acknowledged. 
+JdlCR is supported by grants from the
+Swedish Research Council (Vetenskapsr\aa det) and the Swedish National Space Board.
+AAR also acknowledges financial support through the Ram\'on y Cajal fellowship. 
+This research has made use of NASA's Astrophysics Data System Bibliographic Services.
+\end{acknowledgements}
+
+% \bibliographystyle{aa}
+% \bibliography{/scratch/Dropbox/biblio}
+
+\end{document}

@@ -1,0 +1,28 @@
+
+1. Have you used the same DM size for all inclination angles? And if that is the case, was it larger than 
+the telescope's pupil? How did you handle the pupil's lengthening in one axis? Was the tilted pupil larger or smaller than the DM? 
+
+2. If the system uses a WFS with 8 cm subapertures, why do you use only 11x11 actuators, equivalent to 40 cm pitch?
+
+3. Concerning the simulation, the reference you give only give daytime profiles up to 5 km. Which are the specific
+details of the atmosphere you used?
+
+4. The projection of the pupil on an inclined mirror is elongated in the x axis, so that the actuators are more
+separated than in normal incidence. However, you show that the actuators are less separated in the y direction.
+Which is the explanation for this strange behavior?
+
+5. It is not clear at all from the text that you used different interaction matrices or influence functions for different
+angles (i.e. using calibration matrices measuring the response of each WFS slope to each DM actuator). 
+We are convinced that, if you take into account that the DM is inclined during the calibration
+phase, the DM can work irrespectively of the inclination (GTCAO mirror is inclined and some
+studies were done about this issue also for EST back in 2010).
+
+6. Why is tilt induced in the normal incidence case? We cannot think of any reason for
+that and we don't really understand the reason you mention in the text.
+
+7. Zenith angle 30 degrees and conjugation height 0 km seem to be somehow incoherent parameters. 
+The pupil plane turbulence should not be affected by the zenith angle. Could you explain the reason for combining those figures?.
+
+8. It could be nice to have more details about the simulation (i.e. number and nature of controlled modes, simulated latency, noise,...).
+
+9. Up to what point have you taken into account that the atmospheric turbulence should also be expanded by the inclination of the mirror, in the same proportion than the actuator pitch?

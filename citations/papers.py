@@ -4,6 +4,7 @@ import numpy as np
 from collections import Counter
 from ipdb import set_trace as stop
 import pickle
+import openpyxl
 
 def initials(str):
     return '.'.join(name[0].upper() for name in str.split())+'.'
@@ -11,8 +12,10 @@ def initials(str):
 
 ads.config.token = u'xfibj36Y4mUwZTvU'
 
-csvfile = open('names.csv', 'r')
-reader = csv.reader(csvfile, delimiter=',')
+wb = openpyxl.load_workbook('PaperYear.xlsx')
+
+# grab the active worksheet
+sh = wb['Hoja1']
 
 try:
     with open('output.csv') as foo:
@@ -29,13 +32,23 @@ writer = csv.writer(outFile, delimiter=',')
 
 database = {}
 
+reader = []
+for i in range(598):
+    name = sh['A{0}'.format(int(i+1))].value
+    surname = sh['B{0}'.format(int(i+1))].value
+    reader.append([name, surname])
 
 loop = 1
 for row in reader:
     if (loop > nlines):
         name = "{0}, {1}".format(row[1], initials(row[0]))
         print("{0}".format(name))
-        info = list(ads.SearchQuery(author=name, max_pages=10, property='REFEREED', database='astronomy'))
+        try:
+            info = list(ads.SearchQuery(author=name, max_pages=10, property='REFEREED', database='astronomy'))
+        except:
+            info = []
+            years = np.asarray([0,0])
+
 
         nPapers = len(info)
         print("  N. papers: {0}".format(nPapers))

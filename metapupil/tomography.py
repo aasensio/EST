@@ -183,7 +183,7 @@ class tomography(object):
                 down = (j+1)*self.nZernike
                 self.MStack[up:down,left:right] = self.M[:,:,i,j]
 
-    def generateTurbulentZernikesKolmogorov(self, r0, keepOnly=None):
+    def generateTurbulentZernikesKolmogorov(self, r0, layers, percentages):
         """Generate the covariance matrix for the Zernike coefficients for a given value of r0 using Kolmogorov statistics
         
         Args:
@@ -192,27 +192,34 @@ class tomography(object):
         Returns:
             None
         """
-        self.covariance = np.zeros((self.nZernike,self.nZernike))
-        for i in range(self.nZernike):
-            ni, mi = wf.nollIndices(i+self.noll0)
-            for j in range(self.nZernike):
-                nj, mj = wf.nollIndices(j+self.noll0)
-                if (even(i - j)):
-                    if (mi == mj):
-                        phase = (-1.0)**(0.5*(ni+nj-2*mi))
-                        t1 = np.sqrt((ni+1)*(nj+1)) * np.pi**(8.0/3.0) * 0.0072 * (self.DTel / r0)**(5.0/3.0)
-                        t2 = sp.gamma(14./3.0) * sp.gamma(0.5*(ni+nj-5.0/3.0))
-                        t3 = sp.gamma(0.5*(ni-nj+17.0/3.0)) * sp.gamma(0.5*(nj-ni+17.0/3.0)) * sp.gamma(0.5*(ni+nj+23.0/3.0))
-                        self.covariance[i,j] = phase * t1 * t2 / t3
 
-        self.a['Original'] = np.random.multivariate_normal(np.zeros(self.nZernike), self.covariance, size=(self.nHeight)).T
+        nLayers = len(layers)
+        layersm = [item*1000 for item in layers]
+        r0Equivalent = r0 / (np.asarray(percentages) / 100.0)*(3.0/5.0)
 
-# Keep only the heights that we want
-        if (keepOnly != None):
-            for i in range(self.nHeight):
-                if (self.heights[i]/1e3 not in keepOnly):
-                    self.a['Original'][:,i] = 0.0
+        # coef = np.polyfit(layersm, np.log(r0Equivalent), 1)
+        # self.correction = np.exp(coef[1] + coef[0]*self.heights)
+        
+        self.a['Original'] = np.zeros((self.nZernike,self.nHeight))
 
+        for k in range(self.nHeight):
+            if (self.heights[k] in layersm):
+                whichLayer = layersm.index(self.heights[k])
+                self.covariance = np.zeros((self.nZernike,self.nZernike))
+                for i in range(self.nZernike):
+                    ni, mi = wf.nollIndices(i+self.noll0)
+                    for j in range(self.nZernike):
+                        nj, mj = wf.nollIndices(j+self.noll0)
+                        if (even(i - j)):
+                            if (mi == mj):
+                                phase = (-1.0)**(0.5*(ni+nj-2*mi))
+                                t1 = np.sqrt((ni+1)*(nj+1)) * np.pi**(8.0/3.0) * 0.0072 * (self.DTel / r0Equivalent[whichLayer])**(5.0/3.0)
+                                t2 = sp.gamma(14./3.0) * sp.gamma(0.5*(ni+nj-5.0/3.0))
+                                t3 = sp.gamma(0.5*(ni-nj+17.0/3.0)) * sp.gamma(0.5*(nj-ni+17.0/3.0)) * sp.gamma(0.5*(ni+nj+23.0/3.0))
+                                self.covariance[i,j] = phase * t1 * t2 / t3
+
+                self.a['Original'][:,k] = np.random.multivariate_normal(np.zeros(self.nZernike), self.covariance)
+        
         self.aStack['Original'] = self.a['Original'].T.flatten()
 
 
@@ -299,10 +306,13 @@ class tomography(object):
         coef = x.reshape((self.nHeight,self.nZernike))
         coefOut = np.copy(coef)
         power = np.sum(coefOut**2, axis=1)
-
-        powerThr = ps.sparse.proxes.prox_l1(power ,t*self.mu)
+        
+        # powerThr = ps.sparse.proxes.prox_l1(power / self.correction, t*self.mu) * self.correction
+        powerThr = ps.sparse.proxes.prox_l1(power, t*self.mu)
 
         ratio = powerThr / power
+
+        #print(len(np.where(ratio != 0)[0]))
 
         coefOut *= ratio[:,None]
 
@@ -311,7 +321,27 @@ class tomography(object):
     def _proxg(self, x, t):        
         return ps.sparse.proxes.prox_l1(x ,t*self.mu)
 
-    def solveFASTA(self, b, numberOfLayers=2):        
+    def solveBSBL(self, b, lambdaPar=1e-14):
+        """Solve the tomography using BSBL
+        
+        Args:
+            b (TYPE): array of WFS measurements
+        
+        Returns:
+            None    
+        """
+        
+        groupStartLoc = np.arange(0,self.nZernike*self.nHeight,self.nZernike)
+        clf = ps.sparse.bsbl.b0(learn_lambda=0, learn_type=1, lambda_init=lambdaPar, 
+              epsilon=1e-8, max_iters=500, verbose=1, prune_gamma=1e-3)
+
+        out = clf.fit_transform(self.MStack, np.atleast_2d(b).T, groupStartLoc)
+
+        self.aStack['L1'] = out        
+        self.a['L1'] = self.aStack['L1'].reshape((self.nHeight,self.nZernike)).T
+
+
+    def solveFASTA(self, b, mu=None):
         """Solve the tomography using l1 regularization
         
         Args:
@@ -321,10 +351,10 @@ class tomography(object):
             None    
         """
         L = np.linalg.norm(self.MStack, 2)**2
-        
+
         self.MStackStar = self.MStack.T
 
-        self.numberOfLayers = numberOfLayers
+        # self.numberOfLayers = numberOfLayers
 
 # Define the operators we need
         A = lambda x : self.MStack @ x
@@ -335,15 +365,16 @@ class tomography(object):
         gradf = lambda x : x - b
         
 # Regularization parameter
-        mus = [0.1]
+        if (mu is None):
+            self.mu = 0.001
         
         values = np.zeros_like(self.aStack['Original'])
 
-        for mu in mus:
-            self.mu = mu                        
-            # out = ps.sparse.fasta(A, At, f, gradf, self._g, self._proxL0Height, values, tau=1.32/L, verbose=True, tol=1e-12, maxIter=60000, accelerate=True, backtrack=False, adaptive=False)
-            out = ps.sparse.fasta(A, At, f, gradf, self._g, self._proxL1Height, values, tau=1.32/L, verbose=True, tol=1e-12, maxIter=60000, accelerate=True, backtrack=False, adaptive=False)
-            values = out.optimize()
+        self.mu = mu                        
+        # out = ps.sparse.fasta(A, At, f, gradf, self._g, self._proxL0Height, values, tau=1.32/L, verbose=True, tol=1e-12, maxIter=60000, accelerate=True, backtrack=False, adaptive=False)
+        out = ps.sparse.fasta(A, At, f, gradf, self._g, self._proxL1Height, values, tau=1.32/L, verbose=True, 
+            tol=1e-12, maxIter=60000, accelerate=True, backtrack=False, adaptive=False)
+        values = out.optimize()
 
         self.aStack['L1'] = values
         self.a['L1'] = self.aStack['L1'].reshape((self.nHeight,self.nZernike)).T
@@ -368,7 +399,7 @@ class tomography(object):
         At = lambda x : self.MStackStar @ x
         
 # Regularization parameter
-        mus = [0.1]
+        mus = [0.05]
         
         valuesx = np.zeros_like(self.aStack['Original'])
         valuesy = np.zeros_like(self.aStack['Original'])
@@ -379,14 +410,72 @@ class tomography(object):
 
         for mu in mus:
             self.mu = mu
-            for i in range(25000):
+            for i in range(35000):
                 valuesx = self._proxL1Height(valuesy - tau * At(A(valuesy) - b), tau * self.mu)                
                 tnew = 0.5*(1.0+np.sqrt(1+4*t**2))
                 valuesy = valuesx + (t - 1.0) / tnew * (valuesx - valuesxOld)
                 t = np.copy(tnew)
                 if (i % 100 == 0):
-                    print("It: {0:6d} - resid: {1:12.4e}".format(i, np.linalg.norm(valuesx - valuesxOld, 2) / tau))
-                valuesxOld = np.copy(valuesx)               
+                    print("It: {0:6d} - resid: {1:12.4e} - mu: {2:12.4e}".format(i, np.linalg.norm(valuesx - valuesxOld, 2) / tau, self.mu))                    
+                    # if (self.mu > 0.5):
+                        # self.mu *= 0.98
+                valuesxOld = np.copy(valuesx)
+
+
+        self.aStack['L1'] = valuesx
+        self.a['L1'] = self.aStack['L1'].reshape((self.nHeight,self.nZernike)).T
+
+    def solvePCG(self, b, numberOfLayers=2):        
+        """Solve the tomography using l1 regularization
+        
+        Args:
+            b (TYPE): array of WFS measurements
+        
+        Returns:
+            None    
+        """
+        L = np.linalg.norm(self.MStack, 2)**2
+        
+        self.MStackStar = self.MStack.T
+
+        self.numberOfLayers = numberOfLayers
+
+# Define the operators we need
+        A = lambda x : self.MStack @ x
+        At = lambda x : self.MStackStar @ x
+        
+# Regularization parameter
+        mus = [0.05]
+        
+        dx = np.zeros_like(self.aStack['Original'])
+        valuesx = np.zeros_like(self.aStack['Original'])
+        valuesxOld = np.zeros_like(self.aStack['Original'])
+        
+        tau = 1.0 / L
+        t = 1.0
+
+        gradOld = np.ones_like(dx)
+
+        for mu in mus:
+            self.mu = mu
+            for i in range(25000):
+                grad = At(A(valuesx) - b)
+                px = self._proxL1Height(valuesx - tau * grad, tau * self.mu)
+                sx = px - valuesx
+                if (i == 0):
+                    beta = 1.0
+                else:
+                    beta = np.linalg.norm(grad, 2)**2 / np.linalg.norm(gradOld, 2)**2
+                dx = sx + beta * dx
+                valuesxOld = np.copy(valuesx)
+                alpha = 0.0001
+                valuesx = valuesx + alpha * dx
+                gradOld = np.copy(grad)
+                if (i % 100 == 0):                    
+                    print("It: {0:6d} - resid: {1:12.4e} - beta: {2:12.4e}".format(i, np.linalg.norm(valuesx - valuesxOld, 2) / tau, beta))
+                    # if (self.mu > 0.5):
+                        # self.mu *= 0.98
+                valuesxOld = np.copy(valuesx)
 
 
         self.aStack['L1'] = valuesx
@@ -452,25 +541,27 @@ def plotResults(forward, inversion):
     ax[0].legend()
     ax[1].legend()
 
-np.random.seed(123)
-sns.set_style("dark")
-nStars = 7
-nZernike = 30
-fov = 60.0
-r0 = 0.15
-DTel = 4.0
+if (__name__ == "__main__"):
+    np.random.seed(123)
+    sns.set_style("dark")
+    nStars = 7
+    nZernike = 30
+    fov = 60.0
+    r0 = 0.15
+    DTel = 4.0
 
-heights = np.arange(31)
-forward = tomography(nStars, nZernike, fov, heights, DTel)
-# forward.generateTurbulentZernikesKolmogorov(r0, keepOnly=[0.0,4.0,16.0])
-forward.generateTurbulentZernikesKolmogorov(r0, keepOnly=[0.0, 3.0, 7.0, 12.0, 15.0, 25.0])
-bMeasured = forward.generateWFS()
+    heights = np.arange(31)
+    forward = tomography(nStars, nZernike, fov, heights, DTel)
+    # forward.generateTurbulentZernikesKolmogorov(r0, keepOnly=[0.0,4.0,16.0])
+    forward.generateTurbulentZernikesKolmogorov(r0, layers=[0.0, 2.0, 6.0, 13.0], percentages=[71.5, 23.2, 4.2, 1.2])
+    bMeasured = forward.generateWFS()
 
 
-heights = np.arange(31)
-inversion = tomography(nStars, nZernike, fov, heights, DTel)
-inversion.generateTurbulentZernikesKolmogorov(r0)
-inversion.solveSVD(bMeasured, regularize=True)
-inversion.solveFISTA(bMeasured)
+    heights = np.arange(31)
+    inversion = tomography(nStars, nZernike, fov, heights, DTel)
+    inversion.generateTurbulentZernikesKolmogorov(r0, layers=[0.0, 2.0, 6.0, 13.0], percentages=[71.5, 23.2, 4.2, 1.2])
+    inversion.solveSVD(bMeasured, regularize=True)
+    #inversion.solvePCG(bMeasured)
+    inversion.solveFASTA(bMeasured, 0.001)
 
-plotResults(forward, inversion)
+    plotResults(forward, inversion)

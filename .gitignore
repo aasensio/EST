@@ -6,6 +6,13 @@ __pycache__/
 # C extensions
 *.so
 
+# User
+*.tif
+*.tar.gz
+*.mp4
+*.fits
+*.gz
+
 # Distribution / packaging
 .Python
 env/
