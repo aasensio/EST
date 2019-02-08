@@ -177,6 +177,7 @@ def zernikeProjectionMatrixNumerical(nMax, beta, t, alphat, radius=128, verbose=
         delta = 1
     else:
         delta = 2
+        
     zero, n, m = wf.zernike(0, npix=int(2*radius))
     zero *= 0.0
     
