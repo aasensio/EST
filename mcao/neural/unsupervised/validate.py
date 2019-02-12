@@ -195,8 +195,8 @@ class mcao_neural(object):
     
             pl.show()
 
-            f.savefig('original.png', bbox_inches='tight')
-            f2.savefig('corrected.png', bbox_inches='tight')
+            f.savefig('corrected.png', bbox_inches='tight')
+            f2.savefig('original.png', bbox_inches='tight')
             
 
 if (__name__ == '__main__'):
